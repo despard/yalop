@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/signal"
 	"sync"
 	"time"
 )
@@ -45,6 +46,10 @@ type Work struct {
 
 	// Timeout in seconds.
 	Timeout int
+
+	//Duration of application to send requests. When duration is reached,
+	//application stops and exits
+	Duration time.Duration
 
 	// Qps is the rate limit in queries per second.
 	QPS float64
@@ -93,6 +98,18 @@ func (b *Work) Run() {
 	go func() {
 		runReporter(b.report)
 	}()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		b.Stop()
+	}()
+	if b.Duration > 0 {
+		go func() {
+			time.Sleep(b.Duration)
+			b.Stop()
+		}()
+	}
 	b.runWorkers()
 	b.Finish()
 }
